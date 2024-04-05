@@ -20,7 +20,7 @@ public class CIPTest {
      */
     @Test
     public void testSelectView() throws SQLException {
-        String sql = "select * from realtime_metric";
+        String sql = "select \"metric_id_a\", \"metric_value_a\" from realtime_metric";
         //String sql = "INSERT INTO src_code_grp VALUES (12, TRUE)";
         Connection connection = null;
         Statement statement = null;
@@ -54,7 +54,7 @@ public class CIPTest {
         Connection connection = null;
         Statement statement = null;
         try {
-            String sql = "select * from \"ddw_fact_realtime_metric\"";
+            String sql = "select \"is_enabled_a\", \"source_code_group_id_a\" from src_code_grp";
             Class.forName("org.apache.calcite.jdbc.Driver");
             connection = DriverManager.getConnection("jdbc:calcite:model=src/main/resources/model.json");
             statement = connection.createStatement();
@@ -96,6 +96,19 @@ public class CIPTest {
             throws SQLException {
         final ResultSetMetaData metaData = resultSet.getMetaData();
         final int columnCount = metaData.getColumnCount();
+        out.print("---------------------------------");
+        out.println();
+        for (int i = 1;; i++) {
+            out.print(metaData.getColumnLabel(i));
+            if (i < columnCount) {
+                out.print(", ");
+            } else {
+                out.println();
+                break;
+            }
+        }
+        out.println("---------------------------------");
+
         while (resultSet.next()) {
             for (int i = 1;; i++) {
                 out.print(resultSet.getString(i));

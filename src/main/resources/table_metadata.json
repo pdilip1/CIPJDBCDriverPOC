@@ -1,0 +1,36 @@
+{
+  "tables": [
+    {
+      "name": "ddw_fact_realtime_metric",
+      "alias": "realtime_metric",
+      "columns": [
+        {
+          "name": "metric_id",
+          "alias": "metric_id_a",
+          "type": "string"
+        },
+        {
+          "name": "metric_value",
+          "alias": "metric_value_a",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "ddw_dim_source_code_group",
+      "alias": "src_code_grp",
+      "columns": [
+        {
+          "name": "source_code_group_id",
+          "alias": "source_code_group_id_a",
+          "type": "string"
+        },
+        {
+          "name": "is_enabled",
+          "alias": "is_enabled_a",
+          "type": "boolean"
+        }
+      ]
+    }
+  ]
+}

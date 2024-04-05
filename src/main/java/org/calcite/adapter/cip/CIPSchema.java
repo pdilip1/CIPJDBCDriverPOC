@@ -1,14 +1,21 @@
 package org.calcite.adapter.cip;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import org.apache.calcite.adapter.java.JavaTypeFactory;
+import org.apache.calcite.model.JsonTable;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.schema.Table;
 import org.apache.calcite.schema.impl.AbstractSchema;
 import org.cip.CIPFieldType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.cip.TableDefinition;
+import org.cip.TableDefinitions;
+import org.cip.ColumnDefinition;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -22,6 +29,8 @@ public class CIPSchema extends AbstractSchema {
 
     private Map<String, Table> tableMap;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
 
     public CIPSchema(String group) {
         this.group = group;
@@ -33,16 +42,50 @@ public class CIPSchema extends AbstractSchema {
      */
     @Override protected Map<String, Table> getTableMap() {
         if (tableMap == null) {
-            tableMap = createTableMap();
+            TableDefinitions tableDefinitions = readTableMetadata();
+            tableMap = createTableMap(tableDefinitions);
         }
         return tableMap;
+    }
+
+
+    TableDefinitions readTableMetadata()
+    {
+        File file = new File("src/main/resources/table_metadata.json");
+
+        // Create ObjectMapper
+        ObjectMapper mapper = new ObjectMapper();
+
+        // Deserialize JSON to TableDefinitions object
+        TableDefinitions tableDefinitions = null;
+        try {
+            tableDefinitions = mapper.readValue(file, TableDefinitions.class);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return tableDefinitions;
+
+/*
+        // Print table definitions
+        for (TableDefinition table : tableDefinitions.getTables()) {
+            System.out.println("Table Name: " + table.getName());
+            System.out.println("Table Alias: " + table.getAlias());
+            System.out.println("Columns:");
+            for (ColumnDefinition column : table.getColumns()) {
+                System.out.println("\tColumn Name: " + column.getName());
+                System.out.println("\tColumn Alias: " + column.getAlias());
+            }
+            System.out.println();
+        }
+*/
     }
 
     /**
      * Creates the table map for the specified CIP group
      * @return Map of tableName and CIPScannableTable
      */
-    private Map<String, Table> createTableMap() {
+    private Map<String, Table> createTableMap(TableDefinitions tableDefinitions) {
 
         final ImmutableMap.Builder<String, Table> builder = ImmutableMap.builder();
 
@@ -53,21 +96,18 @@ public class CIPSchema extends AbstractSchema {
          */
         if (this.group.equals("cip")) {
 
-            List<String> fieldNames = Arrays.asList("metric_id", "metric_value");
-            List<CIPFieldType> fieldTypes = Arrays.asList(CIPFieldType.STRING, CIPFieldType.STRING);
-            CIPScannableTable table = (CIPScannableTable) createTable("ddw_fact_realtime_metric", "realtime_metric", fieldNames, fieldTypes);
-            builder.put(table.getTableName().toUpperCase(Locale.getDefault()), table);
-
-            List<String> fieldNames2 = Arrays.asList("source_code_group_id", "is_enabled");
-            List<CIPFieldType> fieldTypes2 = Arrays.asList(CIPFieldType.STRING, CIPFieldType.BOOLEAN);
-            CIPScannableTable table2 = (CIPScannableTable) createTable("ddw_dim_source_code_group", "src_code_grp", fieldNames2, fieldTypes2);
-            builder.put(table2.getTableName().toUpperCase(Locale.getDefault()), table2);
+            for (TableDefinition tableDefinition : tableDefinitions.getTables())
+            {
+                CIPScannableTable table = (CIPScannableTable) createTable(tableDefinition);
+                // Note: The table names are provided as alias names (i.e. getTableAlias)
+                builder.put(table.getTableAlias().toUpperCase(Locale.getDefault()), table);
+            }
         }
         return builder.build();
     }
 
-    private Table createTable (String table, String name, List<String> fieldNames, List<CIPFieldType> fieldTypes) {
+    private Table createTable (TableDefinition tableDefinition) {
 
-        return new CIPScannableTable(this, group, table, name, fieldNames, fieldTypes);
+        return new CIPScannableTable(tableDefinition);
     }
 }

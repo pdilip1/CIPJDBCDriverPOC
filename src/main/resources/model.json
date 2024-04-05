@@ -27,27 +27,7 @@
       "factory": "org.calcite.adapter.cip.CIPSchemaFactory",
       "operand": {
         "group": "cip"
-      }/*,
-      "tables": [
-        {
-          "name": "employees",
-          "alias": "emp",
-          "factory": "org.calcite.adapter.cip.CIPSchemaFactory",
-          "columns": [
-            {
-              "name": "employee_id"
-            }
-          ]
-        },
-        {
-          "name": "departments",
-          "alias": "dept",
-          "columns": [
-            {
-              "name": "department_id"}
-          ]
-        }
-      ]*/
+      }
     }
   ]
 }

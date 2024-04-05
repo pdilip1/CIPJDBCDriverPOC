@@ -7,15 +7,15 @@ import org.apache.calcite.jdbc.CalciteConnection;
 import org.apache.calcite.linq4j.AbstractEnumerable;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.Enumerator;
-import org.apache.calcite.linq4j.Linq4j;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.ScannableTable;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
-import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.Pair;
 import org.cip.CIPFieldType;
+import org.cip.ColumnDefinition;
+import org.cip.TableDefinition;
 
 import javax.sql.DataSource;
 import java.sql.*;
@@ -30,28 +30,45 @@ public class CIPScannableTable extends AbstractTable
         implements ScannableTable {
 
     private static final String POSTGRESQL_SCHEMA = "PUBLIC";
-    private final String table;
-    private final String name;
+    private String tableName;
+    private String tableAlias;
 
     protected List<String> fieldNames;
 
+    protected List<String> fieldAliasNames;
+
     List<CIPFieldType> cipFieldTypes;
 
-    private List<RelDataType> fields = new ArrayList<>();
+    private List<RelDataType> fieldTypes = new ArrayList<>();
 
-    public CIPScannableTable(CIPSchema CIPSchema, String group, String table, String name, List<String> fieldNames, List<CIPFieldType> fieldTypes) {
-        this.table = table;
-        this.name = name;
-        this.fieldNames = fieldNames;
-        this.cipFieldTypes = fieldTypes;
+    TableDefinition tableDefinition;
+
+    public CIPScannableTable(TableDefinition tableDefinition) {
+        this.tableDefinition = tableDefinition;
+        this.tableName = tableDefinition.getName();
+        this.tableAlias = tableDefinition.getAlias();
+        this.fieldNames = new ArrayList<>();
+        this.fieldAliasNames = new ArrayList<>();
+        this.cipFieldTypes =  new ArrayList<>();
+        getColumnNames(tableDefinition.getColumns(), fieldNames, fieldAliasNames, cipFieldTypes);
+    }
+
+    private void getColumnNames (List<ColumnDefinition> columnDefinitions, List<String> fieldNames, List<String> fieldAliasNames, List<CIPFieldType> cipFieldTypes)
+    {
+        for (ColumnDefinition columnDefinition : columnDefinitions)
+        {
+            fieldAliasNames.add(columnDefinition.getAlias());
+            fieldNames.add(columnDefinition.getName());
+            cipFieldTypes.add(CIPFieldType.of(columnDefinition.getType()));
+        }
+    }
+
+    public String getTableAlias() {
+        return this.tableAlias;
     }
 
     public String getTableName() {
-        return this.name;
-    }
-
-    public String getTable() {
-        return this.table;
+        return this.tableName;
     }
 
     public Enumerable<Object[]> scan(DataContext dataContext) {
@@ -84,18 +101,8 @@ public class CIPScannableTable extends AbstractTable
 
             String commaSeparatedString = String.join(", ", quotedStrings);
 
-            String query = "SELECT " +  commaSeparatedString  +   " FROM public." + "\"" +  table + "\"";
+            String query = "SELECT " +  commaSeparatedString  +   " FROM public." + "\"" + tableName + "\"";
 
-
-            // ResultSet resultSet = statement.executeQuery();
-
-/*
-            Stream<Object[]> dataStream = resultSetToStream(resultSet, fieldNames);
-
-            return Linq4j.asEnumerable(new CIPScannableTable.StreamIterable<>(dataStream));
-
-
-*/
             Supplier<Connection> connectionSupplier = () -> connection;
             return new LazyFetchingEnumerable(connectionSupplier, query);
 
@@ -105,34 +112,6 @@ public class CIPScannableTable extends AbstractTable
         }
         return null;
     }
-
-    private static Stream<Object[]> resultSetToStream(ResultSet resultSet, List<String> fieldNames) {
-        Spliterator<Object[]> spliterator = new Spliterators.AbstractSpliterator<Object[]>(
-                Long.MAX_VALUE, Spliterator.ORDERED) {
-            @Override
-            public boolean tryAdvance(Consumer<? super Object[]> action) {
-                try {
-                    if (!resultSet.next()) {
-                        return false;
-                    }
-
-                    int columnCount = resultSet.getMetaData().getColumnCount();
-                    Object[] row = new Object[columnCount];
-                    for (int i = 1; i <= columnCount; i++) {
-                        row[i - 1] = resultSet.getObject(fieldNames.get(i-1));
-                    }
-
-                    action.accept(row);
-                    return true;
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        };
-
-        return StreamSupport.stream(spliterator, false);
-    }
-
 
     /**
      * Get fields and their types in a row
@@ -146,34 +125,17 @@ public class CIPScannableTable extends AbstractTable
             switch(cipFieldType)
             {
                 case STRING:
-                    fields.add(CIPFieldType.STRING.toType((JavaTypeFactory) typeFactory));
+                    fieldTypes.add(CIPFieldType.STRING.toType((JavaTypeFactory) typeFactory));
                     break;
 
                 case BOOLEAN:
-                    fields.add(CIPFieldType.BOOLEAN.toType((JavaTypeFactory) typeFactory));
+                    fieldTypes.add(CIPFieldType.BOOLEAN.toType((JavaTypeFactory) typeFactory));
                     break;
             }
         }
 
-        return typeFactory.createStructType(Pair.zip(fieldNames, fields));
-    }
-
-    public final class StreamIterable<T> implements Iterable<T> {
-
-        private final Stream<T> stream;
-
-        StreamIterable(Stream<T> stream) {
-            this.stream = stream;
-        }
-
-        @Override
-        public Iterator<T> iterator() {
-            return stream.iterator();
-        }
-
-        public <T> StreamIterable<T> of(Stream<T> stream) {
-            return new StreamIterable<>(stream);
-        }
+        // Note: The column names are provided as alias names (i.e. fieldAliasNames)
+        return typeFactory.createStructType(Pair.zip(fieldAliasNames, fieldTypes));
     }
 
     // Custom enumerable for lazy fetching
